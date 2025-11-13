@@ -1479,7 +1479,7 @@
             document.getElementById('fileInput').click();
         }
 
-        // 文件上传处理
+        // 文件上传处理 - 修复版本：自动跳过不存在的列
         async function handleFileUpload(files) {
             if (files.length === 0) return;
             
@@ -1506,10 +1506,48 @@
                     // 转换为JSON数据
                     const jsonData = XLSX.utils.sheet_to_json(worksheet);
                     
-                    updateProgress(50, 100, '处理数据中...');
+                    updateProgress(50, 100, '获取数据库表结构...');
+                    
+                    // 获取数据库表结构
+                    const { data: tableStructure, error: structureError } = await supabase
+                        .from('retail_data')
+                        .select('*')
+                        .limit(1);
+
+                    if (structureError) {
+                        throw new Error(`获取表结构失败: ${structureError.message}`);
+                    }
+
+                    // 获取数据库允许的列名（从表结构中推断）
+                    let allowedColumns = [];
+                    if (tableStructure && tableStructure.length > 0) {
+                        allowedColumns = Object.keys(tableStructure[0]);
+                    } else {
+                        // 如果表为空，使用我们已知的基础列
+                        allowedColumns = ['id', 'created_at', '单据日期', '渠道简称', '货号', '货品名称', '数量', '生意额', '品牌', '类别', '区域'];
+                    }
+
+                    console.log('数据库允许的列:', allowedColumns);
+                    
+                    // 过滤数据，只保留数据库中存在的列
+                    const filteredData = jsonData.map(row => {
+                        const filteredRow = {};
+                        Object.keys(row).forEach(key => {
+                            // 只保留数据库中存在的列，跳过不存在的列
+                            if (allowedColumns.includes(key)) {
+                                filteredRow[key] = row[key];
+                            } else {
+                                console.log(`跳过不存在的列: ${key}`);
+                            }
+                        });
+                        return filteredRow;
+                    });
+
+                    console.log('过滤后的数据:', filteredData);
+                    updateProgress(60, 100, `数据过滤完成，跳过了 ${jsonData.length - filteredData.length} 个不存在的列`);
                     
                     if (uploadMode === 'replace') {
-                        updateProgress(60, 100, '清空云端数据...');
+                        updateProgress(70, 100, '清空云端数据...');
                         const { error } = await supabase
                             .from('retail_data')
                             .delete()
@@ -1518,18 +1556,18 @@
                         if (error) throw new Error(`清空数据失败: ${error.message}`);
                     }
                     
-                    updateProgress(70, 100, '保存数据到云端...');
+                    updateProgress(80, 100, '保存数据到云端...');
                     
-                    // 分批上传数据，避免超时
+                    // 分批上传过滤后的数据
                     const batchSize = 100;
                     let uploaded = 0;
                     
-                    for (let i = 0; i < jsonData.length; i += batchSize) {
-                        const batch = jsonData.slice(i, i + batchSize);
+                    for (let i = 0; i < filteredData.length; i += batchSize) {
+                        const batch = filteredData.slice(i, i + batchSize);
                         await saveDataToCloud(batch);
                         uploaded += batch.length;
-                        updateProgress(70 + Math.round((uploaded / jsonData.length) * 20), 100, 
-                                    `保存数据到云端... (${uploaded}/${jsonData.length})`);
+                        updateProgress(80 + Math.round((uploaded / filteredData.length) * 15), 100, 
+                                    `保存数据到云端... (${uploaded}/${filteredData.length})`);
                     }
                     
                     updateProgress(95, 100, '重新加载数据...');
@@ -1547,7 +1585,10 @@
                     updateProgress(100, 100, '上传完成！');
                     
                     setTimeout(() => {
-                        alert(`文件 ${file.name} 上传成功！\n数据条数: ${jsonData.length}\n模式: ${uploadMode === 'append' ? '增加' : '覆盖'}`);
+                        const skippedColumns = jsonData.length - filteredData.length;
+                        const message = `文件 ${file.name} 上传成功！\n数据条数: ${jsonData.length}\n模式: ${uploadMode === 'append' ? '增加' : '覆盖'}` +
+                                        (skippedColumns > 0 ? `\n自动跳过了 ${skippedColumns} 个不存在的列` : '');
+                        alert(message);
                         closeModal('uploadModal');
                         hideProgress();
                         
