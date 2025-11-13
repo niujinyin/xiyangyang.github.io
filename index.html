@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>零售数据分析系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0F052D 0%, #1E0B5E 50%, #0F052D 100%);
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .dashboard {
+            padding: 15px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .filter-container {
+            background: linear-gradient(135deg, rgba(255,20,147,0.2) 0%, rgba(138,43,226,0.2) 100%);
+            border: 2px solid #8A2BE2;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(255,20,147,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #FFD700;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(255,20,147,0.8);
+            cursor: pointer;
+            padding: 8px;
+            border: 2px dashed transparent;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .filter-title:hover {
+            border-color: #FF1493;
+            background: rgba(255,20,147,0.1);
+        }
+
+        .filter-title.editing {
+            border-color: #00BFFF;
+            background: rgba(0,191,255,0.1);
+        }
+
+        .filter-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .time-toggle {
+            display: flex;
+            background: rgba(15, 5, 45, 0.8);
+            border-radius: 20px;
+            padding: 4px;
+            border: 2px solid #FF1493;
+        }
+
+        .time-toggle button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 15px;
+            background: transparent;
+            color: #00BFFF;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            font-size: 14px;
+        }
+
+        .time-toggle button.active {
+            background: linear-gradient(135deg, #FF1493 0%, #8A2BE2 100%);
+            color: #FFD700;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255,20,147,0.6);
+        }
+
+        .period-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .period-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .period-dropdown select {
+            background: linear-gradient(135deg, #FF1493 0%, #8A2BE2 100%);
+            color: #FFD700;
+            border: 2px solid #00BFFF;
+            border-radius: 12px;
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            appearance: none;
+            min-width: 100px;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(255,20,147,0.5);
+        }
+
+        .period-dropdown::after {
+            content: '▼';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #FFD700;
+            pointer-events: none;
+            font-size: 12px;
+        }
+
+        .date-range {
+            color: #FFD700;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255,20,147,0.5);
+            text-align: center;
+        }
+
+        .file-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .file-btn {
+            background: linear-gradient(135deg, #00BFFF 0%, #00FF7F 100%);
+            color: #0F052D;
+            border: none;
+            border-radius: 12px;
+            padding: 8px 15px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0,191,255,0.5);
+        }
+
+        .file-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(0,191,255,0.8);
+        }
+
+        .upload-mode {
+            display: flex;
+            gap: 8px;
+        }
+
+        .upload-mode label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            color: #00BFFF;
+            font-size: 12px;
+        }
+
+        .chart-container {
+            background: linear-gradient(135deg, rgba(15, 5, 45, 0.9) 0%, rgba(30, 11, 94, 0.9) 100%);
+            border: 2px solid #8A2BE2;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: 0 0 20px rgba(255,20,147,0.3);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+        }
+
+        .chart-container:hover {
+            box-shadow: 0 0 25px rgba(255,20,147,0.5);
+            transform: translateY(-3px);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFD700;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(255,20,147,0.8);
+            cursor: pointer;
+            padding: 8px;
+            border: 2px dashed transparent;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .chart-title:hover {
+            border-color: #FF1493;
+            background: rgba(255,20,147,0.1);
+        }
+
+        .chart-title.editing {
+            border-color: #00BFFF;
+            background: rgba(0,191,255,0.1);
+        }
+
+        .chart-subtitle {
+            font-size: 14px;
+            color: #00BFFF;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .ranking-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: linear-gradient(135deg, rgba(15, 5, 45, 0.9) 0%, rgba(30, 11, 94, 0.9) 100%);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(255, 20, 147, 0.5);
+            font-size: 12px;
+        }
+
+        .ranking-table th {
+            background: linear-gradient(135deg, #FF1493 0%, #8A2BE2 100%);
+            color: #FFD700;
+            font-weight: bold;
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 13px;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+        }
+
+        .ranking-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 20, 147, 0.3);
+            color: #00BFFF;
+            font-weight: 500;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .ranking-table tbody tr {
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .ranking-table tbody tr:hover {
+            background: rgba(255, 20, 147, 0.2);
+            transform: scale(1.02) translateY(-2px);
+            box-shadow: 0 5px 10px rgba(255, 20, 147, 0.4);
+            border-radius: 6px;
+        }
+
+        .ranking-table tbody tr:nth-child(1) {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 20, 147, 0.3) 100%);
+            color: #FFD700;
+            font-weight: bold;
+        }
+
+        .ranking-table tbody tr:nth-child(2) {
+            background: linear-gradient(135deg, rgba(192, 192, 192, 0.3) 0%, rgba(255, 20, 147, 0.2) 100%);
+        }
+
+        .ranking-table tbody tr:nth-child(3) {
+            background: linear-gradient(135deg, rgba(205, 127, 50, 0.3) 0%, rgba(255, 20, 147, 0.2) 100%);
+        }
+
+        .rank-header { width: 15%; }
+        .category-header { width: 35%; }
+        .code-header { width: 30%; }
+        .quantity-header { width: 20%; }
+
+        .ranking-table .rank-cell {
+            font-weight: bold;
+            font-size: 14px;
+            color: #FFD700;
+        }
+
+        .ranking-table .quantity-cell {
+            font-weight: bold;
+            color: #00FF7F;
+            font-size: 13px;
+        }
+
+        .type-sales-display {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(255,20,147,0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(255,20,147,0.3);
+            flex-wrap: wrap;
+        }
+
+        .type-sales-item {
+            text-align: center;
+        }
+
+        .type-sales-label {
+            font-size: 14px;
+            color: #00BFFF;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .type-sales-value {
+            font-size: 16px;
+            color: #FFD700;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255,215,0,0.5);
+        }
+
+        @keyframes bounceIn {
+            0% { 
+                opacity: 0; 
+                transform: scale(0.3) translateY(80px); 
+            }
+            50% { 
+                opacity: 0.9; 
+                transform: scale(1.05) translateY(-8px); 
+            }
+            80% { 
+                opacity: 1; 
+                transform: scale(0.95) translateY(4px); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: scale(1) translateY(0); 
+            }
+        }
+
+        .bounce-in {
+            animation: bounceIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        .ranking-table .champion {
+            color: #FFD700 !important;
+            text-shadow: 0 0 8px #FFD700;
+        }
+
+        .ranking-table .runner-up {
+            color: #C0C0C0 !important;
+            text-shadow: 0 0 6px #C0C0C0;
+        }
+
+        .ranking-table .third-place {
+            color: #CD7F32 !important;
+            text-shadow: 0 0 6px #CD7F32;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 5, 45, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1E0B5E 0%, #0F052D 100%);
+            border: 2px solid #8A2BE2;
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            box-shadow: 0 0 30px rgba(255,20,147,0.5);
+            text-align: center;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            color: #FFD700;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(255,20,147,0.8);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: #FF1493;
+            font-size: 24px;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .source-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .source-btn {
+            background: linear-gradient(135deg, #FF1493 0%, #8A2BE2 100%);
+            color: #FFD700;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(255,20,147,0.5);
+        }
+
+        .source-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255,20,147,0.8);
+        }
+
+        .download-options {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #00BFFF 0%, #00FF7F 100%);
+            color: #0F052D;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(0,191,255,0.8);
+        }
+
+        .progress-container {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background: linear-gradient(135deg, #00BFFF 0%, #00FF7F 100%);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0F052D;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #00BFFF;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        #qrcode {
+            margin: 15px auto;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        @media (min-width: 768px) {
+            .dashboard {
+                padding: 20px;
+            }
+            
+            .chart-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .filter-title {
+                font-size: 24px;
+            }
+            
+            .chart-title {
+                font-size: 20px;
+            }
+            
+            .time-toggle button {
+                padding: 12px 25px;
+                font-size: 16px;
+            }
+            
+            .file-btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+        }
+
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- 筛选器 -->
+        <div class="filter-container">
+            <div class="filter-title" contenteditable="false">零售数据分析系统</div>
+            <div class="filter-controls">
+                <div class="time-toggle">
+                    <button id="weekMode" class="active">周视图</button>
+                    <button id="monthMode">月视图</button>
+                </div>
+                
+                <div class="period-selector">
+                    <!-- 周选择器 -->
+                    <div class="period-dropdown" id="weekSelector">
+                        <select id="weekSelect">
+                            <option value="">请先上传数据</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 月选择器 -->
+                    <div class="period-dropdown" id="monthSelector" style="display: none;">
+                        <select id="monthSelect">
+                            <option value="">请先上传数据</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="date-range" id="dateRangeDisplay">
+                    请上传数据文件
+                </div>
+                
+                <div class="file-controls">
+                    <button class="file-btn" onclick="showUploadModal()">上传数据</button>
+                    <button class="file-btn" onclick="showDownloadModal()">下载数据/模板</button>
+                    <button class="file-btn" onclick="showShareModal()">分享到微信</button>
+                    <div class="upload-mode">
+                        <label><input type="radio" name="uploadMode" value="append" checked> 增加</label>
+                        <label><input type="radio" name="uploadMode" value="replace"> 覆盖</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(this.files)">
+
+        <!-- 第一行：渠道销售柱状图 -->
+        <div class="chart-container full-width">
+            <div class="chart-title" contenteditable="false">渠道销售分析</div>
+            <div id="channelSalesChart" style="width: 100%; height: 400px;"></div>
+        </div>
+
+        <!-- 第二行：联营代理圆环图 + TOP10表格 -->
+        <div class="chart-grid">
+            <!-- 联营代理圆环图 -->
+            <div class="chart-container">
+                <div class="chart-title" contenteditable="false">联营代理销售</div>
+                <div class="chart-subtitle" id="typeRingSubtitle">请上传数据查看详情</div>
+                <!-- 销售额横排显示 -->
+                <div class="type-sales-display" id="typeSalesDisplay">
+                    <div class="type-sales-item">
+                        <div class="type-sales-label">加载中...</div>
+                        <div class="type-sales-value">¥0</div>
+                    </div>
+                </div>
+                <div id="typeRingChart" style="width: 100%; height: 300px;"></div>
+            </div>
+
+            <!-- TOP10销售表格 -->
+            <div class="chart-container">
+                <div class="chart-title" contenteditable="false">TOP10销售排行</div>
+                <div id="top10Table" style="width: 100%;">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th class="rank-header">排名</th>
+                                <th class="category-header">类别</th>
+                                <th class="code-header">货号</th>
+                                <th class="quantity-header">生意额</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top10TableBody">
+                            <tr>
+                                <td colspan="4" style="text-align: center; color: #FFD700; padding: 30px;">
+                                    请上传数据文件查看TOP10销售排名
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传数据模态框 -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('uploadModal')">×</button>
+            <div class="modal-title">选择数据源上传</div>
+            <div class="source-buttons">
+                <button class="source-btn" onclick="selectDataSource('dataSource')">数据源</button>
+                <button class="source-btn" onclick="selectDataSource('fundSource')">资金源</button>
+                <button class="source-btn" onclick="selectDataSource('taskSource')">任务源</button>
+                <button class="source-btn" onclick="selectDataSource('stockSource')">库存源</button>
+            </div>
+            <div class="upload-mode">
+                <label><input type="radio" name="uploadMode" value="append" checked> 增加模式（在现有数据上添加）</label>
+                <label><input type="radio" name="uploadMode" value="replace"> 覆盖模式（清空现有数据）</label>
+            </div>
+            <div style="margin-top: 15px; color: #00BFFF; font-size: 14px;">
+                已选择: <span id="selectedDataSource">未选择</span>
+            </div>
+            
+            <!-- 进度条 -->
+            <div id="progressSection" style="display: none;">
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBar">0%</div>
+                </div>
+                <div class="progress-text" id="progressText">正在处理数据...</div>
+            </div>
+            
+            <button class="file-btn" style="margin-top: 15px;" onclick="triggerFileInput()">确认上传</button>
+        </div>
+    </div>
+
+    <!-- 下载数据模态框 -->
+    <div id="downloadModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('downloadModal')">×</button>
+            <div class="modal-title">下载数据或模板</div>
+            <div class="download-options">
+                <button class="download-btn" onclick="downloadAllData()">下载数据源</button>
+                <button class="download-btn" onclick="downloadTemplate()">下载模板</button>
+            </div>
+            <div style="margin-top: 15px; color: #00BFFF; font-size: 14px; text-align: left;">
+                <p>• <strong>下载数据源</strong>: 包含系统当前所有数据</p>
+                <p>• <strong>下载模板</strong>: 空模板，红色字段为必填</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 微信分享模态框 -->
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('shareModal')">×</button>
+            <div class="modal-title">分享到微信</div>
+            <p style="color: #00BFFF; margin-bottom: 15px;">扫描二维码在微信中打开</p>
+            <div id="qrcode"></div>
+            <p style="color: #FFD700; margin-top: 15px; font-size: 14px;">在微信中打开可交互查看数据</p>
+        </div>
+    </div>
+
+    <script>
+        // IndexedDB数据库配置
+        const DB_NAME = 'RetailDataSystem';
+        const DB_VERSION = 1;
+        const STORES = {
+            DATA_SOURCE: 'dataSource',
+            FUND_SOURCE: 'fundSource',
+            TASK_SOURCE: 'taskSource',
+            STOCK_SOURCE: 'stockSource'
+        };
+
+        let db = null;
+        let dataSource = [];
+        let currentFilter = {
+            mode: 'week',
+            period: ''
+        };
+        let selectedDataSource = '';
+        let channelChart, typeRingChart;
+
+        // 初始化IndexedDB
+        function initDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    
+                    // 创建所有数据存储
+                    Object.values(STORES).forEach(storeName => {
+                        if (!database.objectStoreNames.contains(storeName)) {
+                            const store = database.createObjectStore(storeName, { 
+                                keyPath: 'id', 
+                                autoIncrement: true 
+                            });
+                            // 创建索引以便查询
+                            store.createIndex('timestamp', 'timestamp', { unique: false });
+                        }
+                    });
+                };
+            });
+        }
+
+        // 保存数据到IndexedDB
+        async function saveDataToIndexedDB(storeName, data) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('数据库未初始化'));
+                    return;
+                }
+                
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                
+                // 添加时间戳
+                const dataWithTimestamp = data.map(item => ({
+                    ...item,
+                    timestamp: new Date().getTime()
+                }));
+                
+                const requests = dataWithTimestamp.map(item => store.add(item));
+                let completed = 0;
+                
+                requests.forEach((request, index) => {
+                    request.onsuccess = () => {
+                        completed++;
+                        updateProgress(completed, data.length, `保存数据中... (${completed}/${data.length})`);
+                        
+                        if (completed === data.length) {
+                            resolve(completed);
+                        }
+                    };
+                    
+                    request.onerror = () => reject(request.error);
+                });
+            });
+        }
+
+        // 从IndexedDB读取数据
+        async function loadDataFromIndexedDB(storeName) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('数据库未初始化'));
+                    return;
+                }
+                
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // 清空IndexedDB存储
+        async function clearIndexedDBStore(storeName) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('数据库未初始化'));
+                    return;
+                }
+                
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.clear();
+                
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // 更新进度显示
+        function updateProgress(current, total, text) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progress = Math.round((current / total) * 100);
+            
+            if (progressBar) {
+                progressBar.style.width = `${progress}%`;
+                progressBar.textContent = `${progress}%`;
+            }
+            
+            if (progressText) {
+                progressText.textContent = text;
+            }
+        }
+
+        // 显示进度条
+        function showProgress() {
+            const progressSection = document.getElementById('progressSection');
+            if (progressSection) {
+                progressSection.style.display = 'block';
+            }
+        }
+
+        // 隐藏进度条
+        function hideProgress() {
+            const progressSection = document.getElementById('progressSection');
+            if (progressSection) {
+                progressSection.style.display = 'none';
+            }
+        }
+
+        // 千分位格式化函数
+        function formatCurrency(value) {
+            return '¥' + value.toLocaleString('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+        }
+
+        // 获取ISO周数
+        function getISOWeek(date) {
+            const target = new Date(date.valueOf());
+            const dayNr = (date.getDay() + 6) % 7;
+            target.setDate(target.getDate() - dayNr + 3);
+            const firstThursday = target.valueOf();
+            target.setMonth(0, 1);
+            if (target.getDay() !== 4) {
+                target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+            }
+            return 1 + Math.ceil((firstThursday - target) / 604800000);
+        }
+
+        // 从日期字符串解析日期
+        function parseDate(dateStr) {
+            if (!dateStr) return null;
+            if (dateStr.includes('/')) {
+                return new Date(dateStr);
+            } else if (dateStr.includes('-')) {
+                return new Date(dateStr.replace(/-/g, '/'));
+            }
+            return new Date(dateStr);
+        }
+
+        // 获取周的日期范围
+        function getWeekDateRange(week, year = 2025) {
+            const startDate = new Date(year, 0, 1 + (week - 1) * 7);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            
+            return {
+                start: startDate.toISOString().split('T')[0],
+                end: endDate.toISOString().split('T')[0]
+            };
+        }
+
+        // 获取月的日期范围
+        function getMonthDateRange(month, year = 2025) {
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0);
+            
+            return {
+                start: startDate.toISOString().split('T')[0],
+                end: endDate.toISOString().split('T')[0]
+            };
+        }
+
+        // 提取所有唯一的周数和月份
+        function extractPeriods(data) {
+            const weeks = new Set();
+            const months = new Set();
+            
+            data.forEach(row => {
+                const dateStr = row['单据日期'];
+                if (dateStr) {
+                    const date = parseDate(dateStr);
+                    if (date && !isNaN(date.getTime())) {
+                        const week = getISOWeek(date);
+                        const month = date.getMonth() + 1;
+                        weeks.add(week);
+                        months.add(month);
+                    }
+                }
+            });
+            
+            return {
+                weeks: Array.from(weeks).sort((a, b) => a - b),
+                months: Array.from(months).sort((a, b) => a - b)
+            };
+        }
+
+        // 根据当前筛选条件获取数据
+        function getFilteredData() {
+            const { mode, period } = currentFilter;
+            if (!period) return [];
+            
+            return dataSource.filter(row => {
+                const dateStr = row['单据日期'];
+                if (!dateStr) return false;
+                
+                const date = parseDate(dateStr);
+                if (!date || isNaN(date.getTime())) return false;
+                
+                if (mode === 'month') {
+                    return (date.getMonth() + 1) === parseInt(period);
+                } else {
+                    return getISOWeek(date) === parseInt(period);
+                }
+            });
+        }
+
+        // 更新筛选器选项
+        function updateFilterOptions() {
+            const periods = extractPeriods(dataSource);
+            
+            // 更新周选择器
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.innerHTML = '';
+            if (periods.weeks.length > 0) {
+                periods.weeks.forEach(week => {
+                    const option = document.createElement('option');
+                    option.value = week;
+                    option.textContent = `第${week}周`;
+                    weekSelect.appendChild(option);
+                });
+                currentFilter.period = periods.weeks[0].toString();
+            }
+            
+            // 更新月选择器
+            const monthSelect = document.getElementById('monthSelect');
+            monthSelect.innerHTML = '';
+            if (periods.months.length > 0) {
+                periods.months.forEach(month => {
+                    const option = document.createElement('option');
+                    option.value = month;
+                    option.textContent = `${month}月`;
+                    monthSelect.appendChild(option);
+                });
+            }
+            
+            updateDateRangeDisplay();
+        }
+
+        // 更新日期范围显示
+        function updateDateRangeDisplay() {
+            const { mode, period } = currentFilter;
+            if (!period) {
+                document.getElementById('dateRangeDisplay').textContent = '请选择筛选周期';
+                return;
+            }
+            
+            let displayText = '';
+            if (mode === 'week') {
+                const range = getWeekDateRange(parseInt(period));
+                displayText = `当前筛选：第${period}周（${range.start} 至 ${range.end}）`;
+            } else {
+                const range = getMonthDateRange(parseInt(period));
+                displayText = `当前筛选：${period}月（${range.start} 至 ${range.end}）`;
+            }
+            
+            document.getElementById('dateRangeDisplay').textContent = displayText;
+        }
+
+        // 初始化图表
+        function initCharts() {
+            channelChart = echarts.init(document.getElementById('channelSalesChart'));
+            typeRingChart = echarts.init(document.getElementById('typeRingChart'));
+            updateAllCharts();
+        }
+
+        // 更新所有图表
+        function updateAllCharts() {
+            updateChannelSalesChart();
+            updateTypeRingChart();
+            updateTop10Table();
+        }
+
+        // 更新渠道销售柱状图
+        function updateChannelSalesChart() {
+            const filteredData = getFilteredData();
+            
+            if (filteredData.length === 0) {
+                channelChart.setOption({
+                    title: {
+                        text: '暂无数据',
+                        textStyle: {
+                            color: '#FFD700',
+                            fontSize: 18
+                        },
+                        left: 'center',
+                        top: 'center'
+                    }
+                });
+                return;
+            }
+            
+            // 按店铺分组计算销售额
+            const storeSales = {};
+            filteredData.forEach(row => {
+                const store = row['渠道简称'] || '未知店铺';
+                const amount = parseFloat(row['生意额']) || 0;
+                storeSales[store] = (storeSales[store] || 0) + amount;
+            });
+            
+            // 过滤掉销售额为0的店铺并按销售额降序排列
+            const storeData = Object.entries(storeSales)
+                .filter(([_, amount]) => amount > 0)
+                .sort((a, b) => b[1] - a[1]);
+            
+            const storeNames = storeData.map(([store]) => store);
+            const salesAmounts = storeData.map(([_, amount]) => amount);
+            
+            const totalSales = salesAmounts.reduce((sum, amount) => sum + amount, 0);
+            const maxSales = Math.max(...salesAmounts);
+            
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: function(params) {
+                        return `<strong>${params[0].name}</strong><br/>销售金额: ${formatCurrency(params[0].value)}`;
+                    }
+                },
+                title: {
+                    text: `合计销售额: ${formatCurrency(totalSales)}`,
+                    textStyle: {
+                        color: '#FFD700',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    },
+                    left: 'center',
+                    top: 10
+                },
+                xAxis: {
+                    type: 'category',
+                    data: storeNames,
+                    axisLabel: {
+                        color: '#00BFFF',
+                        fontSize: 11,
+                        interval: 0,
+                        rotate: 45,
+                        margin: 12
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#FF1493'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '销售金额',
+                    nameTextStyle: {
+                        color: '#FFD700'
+                    },
+                    axisLabel: {
+                        color: '#00BFFF',
+                        formatter: function(value) {
+                            return formatCurrency(value);
+                        }
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#FF1493'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 20, 147, 0.3)'
+                        }
+                    }
+                },
+                series: [{
+                    data: salesAmounts.map((amount, index) => ({
+                        value: amount,
+                        itemStyle: {
+                            color: amount === maxSales ? 
+                                new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: '#FFD700' },
+                                    { offset: 1, color: '#FF1493' }
+                                ]) :
+                                new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: '#FF1493' },
+                                    { offset: 1, color: '#8A2BE2' }
+                                ])
+                        }
+                    })),
+                    type: 'bar',
+                    barWidth: '20px',
+                    itemStyle: {
+                        borderRadius: [8, 8, 0, 0],
+                        borderWidth: 0
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 15,
+                            shadowColor: 'rgba(255, 20, 147, 0.8)',
+                            scale: 1.05,
+                            transition: 'all 0.3s'
+                        }
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        color: '#FFD700',
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        formatter: function(params) {
+                            return formatCurrency(params.value);
+                        }
+                    }
+                }],
+                animation: true,
+                animationDuration: 1000,
+                animationEasing: 'elasticOut'
+            };
+            
+            channelChart.setOption(option);
+        }
+
+        // 更新联营代理圆环图 - 已修复筛选问题
+        function updateTypeRingChart() {
+            const filteredData = getFilteredData();
+            
+            if (filteredData.length === 0) {
+                typeRingChart.setOption({
+                    title: {
+                        text: '暂无数据',
+                        textStyle: {
+                            color: '#FFD700',
+                            fontSize: 16
+                        },
+                        left: 'center',
+                        top: 'center'
+                    }
+                });
+                
+                document.getElementById('typeRingSubtitle').textContent = '请上传数据查看详情';
+                document.getElementById('typeSalesDisplay').innerHTML = `
+                    <div class="type-sales-item">
+                        <div class="type-sales-label">暂无数据</div>
+                        <div class="type-sales-value">¥0</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 按U列（区域）分类计算销售额 - 使用筛选后的数据
+            const typeSales = {};
+            filteredData.forEach(row => {
+                const type = row['区域'] || '未知类型';
+                const amount = parseFloat(row['生意额']) || 0;
+                typeSales[type] = (typeSales[type] || 0) + amount;
+            });
+            
+            // 转换为数组并按销售额降序排列
+            const typeData = Object.entries(typeSales)
+                .filter(([_, amount]) => amount > 0)
+                .sort((a, b) => b[1] - a[1]);
+            
+            const typeNames = typeData.map(([type]) => type);
+            const salesAmounts = typeData.map(([_, amount]) => amount);
+            const totalSales = salesAmounts.reduce((sum, amount) => sum + amount, 0);
+            
+            // 更新副标题和横排显示
+            document.getElementById('typeRingSubtitle').textContent = 
+                `${typeNames.join('、')} 销售总额: ${formatCurrency(totalSales)}`;
+            
+            let typeSalesHTML = '';
+            typeData.forEach(([type, amount]) => {
+                typeSalesHTML += `
+                    <div class="type-sales-item">
+                        <div class="type-sales-label">${type}</div>
+                        <div class="type-sales-value">${formatCurrency(amount)}</div>
+                    </div>
+                `;
+            });
+            document.getElementById('typeSalesDisplay').innerHTML = typeSalesHTML;
+            
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        return `<strong>${params.name}</strong><br/>销售金额: ${formatCurrency(params.value)}<br/>占比: ${params.percent}%`;
+                    }
+                },
+                series: [{
+                    name: '销售分布',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    center: ['50%', '50%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 8,
+                        borderColor: '#0F052D',
+                        borderWidth: 2
+                    },
+                    label: {
+                        show: true,
+                        formatter: '{b}: {d}%',
+                        color: '#FFD700',
+                        fontSize: 12
+                    },
+                    emphasis: {
+                        scale: true,
+                        scaleSize: 12,
+                        itemStyle: {
+                            shadowBlur: 15,
+                            shadowColor: 'rgba(255, 20, 147, 0.8)',
+                            transition: 'all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+                        }
+                    },
+                    data: typeData.map(([type, amount], index) => {
+                        const colors = [
+                            new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#FF1493' },
+                                { offset: 1, color: '#8A2BE2' }
+                            ]),
+                            new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#00BFFF' },
+                                { offset: 1, color: '#00FF7F' }
+                            ]),
+                            new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#FFD700' },
+                                { offset: 1, color: '#FF1493' }
+                            ])
+                        ];
+                        
+                        return {
+                            name: type,
+                            value: amount,
+                            itemStyle: {
+                                color: colors[index % colors.length]
+                            }
+                        };
+                    })
+                }],
+                animation: true,
+                animationDuration: 1500,
+                animationEasing: 'elasticOut'
+            };
+            
+            typeRingChart.setOption(option, true);
+        }
+
+        // 更新TOP10表格
+        function updateTop10Table() {
+            const filteredData = getFilteredData();
+            const tableBody = document.getElementById('top10TableBody');
+            
+            if (filteredData.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #FFD700; padding: 30px;">
+                            当前筛选条件下暂无数据
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // 按货号分组计算销售额和获取类别
+            const productSales = {};
+            filteredData.forEach(row => {
+                const productCode = row['货号'] || '未知货号';
+                const category = row['类别'] || '未知类别';
+                const amount = parseFloat(row['生意额']) || 0;
+                
+                if (!productSales[productCode]) {
+                    productSales[productCode] = {
+                        category: category,
+                        amount: 0
+                    };
+                }
+                productSales[productCode].amount += amount;
+            });
+            
+            // 转换为数组并按销售额降序排列，取前10
+            const top10Products = Object.entries(productSales)
+                .map(([code, data]) => ({
+                    code: code,
+                    category: data.category,
+                    amount: data.amount
+                }))
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 10);
+            
+            tableBody.innerHTML = '';
+            
+            if (top10Products.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #FFD700; padding: 30px;">
+                            暂无销售数据
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            top10Products.forEach((product, index) => {
+                const row = document.createElement('tr');
+                
+                let rankClass = '';
+                if (index === 0) rankClass = 'champion';
+                else if (index === 1) rankClass = 'runner-up';
+                else if (index === 2) rankClass = 'third-place';
+                
+                row.innerHTML = `
+                    <td class="rank-cell ${rankClass}">${index + 1}</td>
+                    <td class="category-cell">${product.category}</td>
+                    <td class="code-cell">${product.code}</td>
+                    <td class="quantity-cell">${formatCurrency(product.amount)}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // 添加动画效果
+            const rows = tableBody.querySelectorAll('tr');
+            rows.forEach((row, index) => {
+                row.style.animationDelay = `${index * 0.1}s`;
+                row.classList.add('bounce-in');
+            });
+        }
+
+        // 筛选器切换逻辑
+        document.getElementById('weekMode').addEventListener('click', function() {
+            document.getElementById('weekMode').classList.add('active');
+            document.getElementById('monthMode').classList.remove('active');
+            document.getElementById('weekSelector').style.display = 'inline-block';
+            document.getElementById('monthSelector').style.display = 'none';
+            
+            currentFilter.mode = 'week';
+            const weekSelect = document.getElementById('weekSelect');
+            if (weekSelect.value) {
+                currentFilter.period = weekSelect.value;
+                updateDateRangeDisplay();
+                updateAllCharts();
+            }
+        });
+
+        document.getElementById('monthMode').addEventListener('click', function() {
+            document.getElementById('monthMode').classList.add('active');
+            document.getElementById('weekMode').classList.remove('active');
+            document.getElementById('monthSelector').style.display = 'inline-block';
+            document.getElementById('weekSelector').style.display = 'none';
+            
+            currentFilter.mode = 'month';
+            const monthSelect = document.getElementById('monthSelect');
+            if (monthSelect.value) {
+                currentFilter.period = monthSelect.value;
+                updateDateRangeDisplay();
+                updateAllCharts();
+            }
+        });
+
+        // 周选择器变化
+        document.getElementById('weekSelect').addEventListener('change', function() {
+            currentFilter.period = this.value;
+            updateDateRangeDisplay();
+            updateAllCharts();
+        });
+
+        // 月选择器变化
+        document.getElementById('monthSelect').addEventListener('change', function() {
+            currentFilter.period = this.value;
+            updateDateRangeDisplay();
+            updateAllCharts();
+        });
+
+        // 模态框功能
+        function showUploadModal() {
+            document.getElementById('uploadModal').style.display = 'flex';
+            hideProgress();
+        }
+
+        function showDownloadModal() {
+            document.getElementById('downloadModal').style.display = 'flex';
+        }
+
+        function showShareModal() {
+            document.getElementById('shareModal').style.display = 'flex';
+            generateQRCode();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function selectDataSource(source) {
+            selectedDataSource = source;
+            const sourceNames = {
+                'dataSource': '数据源',
+                'fundSource': '资金源',
+                'taskSource': '任务源',
+                'stockSource': '库存源'
+            };
+            document.getElementById('selectedDataSource').textContent = sourceNames[source];
+        }
+
+        function triggerFileInput() {
+            if (!selectedDataSource) {
+                alert('请先选择数据源');
+                return;
+            }
+            document.getElementById('fileInput').click();
+        }
+
+        // 文件上传处理
+        async function handleFileUpload(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            const reader = new FileReader();
+            const uploadMode = document.querySelector('input[name="uploadMode"]:checked').value;
+            
+            showProgress();
+            updateProgress(0, 100, '开始读取文件...');
+            
+            reader.onload = async function(e) {
+                try {
+                    updateProgress(10, 100, '解析Excel文件...');
+                    
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    updateProgress(30, 100, '转换数据格式...');
+                    
+                    // 获取第一个工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 转换为JSON数据
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    updateProgress(50, 100, '处理数据中...');
+                    
+                    let storeName;
+                    switch(selectedDataSource) {
+                        case 'dataSource':
+                            storeName = STORES.DATA_SOURCE;
+                            break;
+                        case 'fundSource':
+                            storeName = STORES.FUND_SOURCE;
+                            break;
+                        case 'taskSource':
+                            storeName = STORES.TASK_SOURCE;
+                            break;
+                        case 'stockSource':
+                            storeName = STORES.STOCK_SOURCE;
+                            break;
+                        default:
+                            throw new Error('未知的数据源类型');
+                    }
+                    
+                    if (uploadMode === 'replace') {
+                        updateProgress(60, 100, '清空现有数据...');
+                        await clearIndexedDBStore(storeName);
+                    }
+                    
+                    updateProgress(70, 100, '保存数据到数据库...');
+                    await saveDataToIndexedDB(storeName, jsonData);
+                    
+                    // 如果是数据源，更新内存中的数据
+                    if (selectedDataSource === 'dataSource') {
+                        updateProgress(90, 100, '更新图表数据...');
+                        dataSource = await loadDataFromIndexedDB(STORES.DATA_SOURCE);
+                        updateFilterOptions();
+                        updateAllCharts();
+                    }
+                    
+                    updateProgress(100, 100, '上传完成！');
+                    
+                    setTimeout(() => {
+                        alert(`文件 ${file.name} 上传成功！\n数据条数: ${jsonData.length}\n数据源: ${selectedDataSource}\n模式: ${uploadMode === 'append' ? '增加' : '覆盖'}`);
+                        closeModal('uploadModal');
+                        selectedDataSource = '';
+                        document.getElementById('selectedDataSource').textContent = '未选择';
+                        hideProgress();
+                    }, 500);
+                    
+                } catch (error) {
+                    alert('文件解析错误: ' + error.message);
+                    console.error('File parsing error:', error);
+                    hideProgress();
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('文件读取失败');
+                hideProgress();
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 下载所有数据
+        async function downloadAllData() {
+            try {
+                const workbook = XLSX.utils.book_new();
+                let hasData = false;
+                
+                // 下载数据源
+                const dataSourceData = await loadDataFromIndexedDB(STORES.DATA_SOURCE);
+                if (dataSourceData.length > 0) {
+                    const dataSheet = XLSX.utils.json_to_sheet(dataSourceData.map(({id, timestamp, ...rest}) => rest));
+                    XLSX.utils.book_append_sheet(workbook, dataSheet, '数据源');
+                    hasData = true;
+                }
+                
+                // 下载资金源
+                const fundSourceData = await loadDataFromIndexedDB(STORES.FUND_SOURCE);
+                if (fundSourceData.length > 0) {
+                    const fundSheet = XLSX.utils.json_to_sheet(fundSourceData.map(({id, timestamp, ...rest}) => rest));
+                    XLSX.utils.book_append_sheet(workbook, fundSheet, '资金源');
+                    hasData = true;
+                }
+                
+                // 下载任务源
+                const taskSourceData = await loadDataFromIndexedDB(STORES.TASK_SOURCE);
+                if (taskSourceData.length > 0) {
+                    const taskSheet = XLSX.utils.json_to_sheet(taskSourceData.map(({id, timestamp, ...rest}) => rest));
+                    XLSX.utils.book_append_sheet(workbook, taskSheet, '任务源');
+                    hasData = true;
+                }
+                
+                // 下载库存源
+                const stockSourceData = await loadDataFromIndexedDB(STORES.STOCK_SOURCE);
+                if (stockSourceData.length > 0) {
+                    const stockSheet = XLSX.utils.json_to_sheet(stockSourceData.map(({id, timestamp, ...rest}) => rest));
+                    XLSX.utils.book_append_sheet(workbook, stockSheet, '库存源');
+                    hasData = true;
+                }
+                
+                if (!hasData) {
+                    alert('系统中暂无数据可下载');
+                    return;
+                }
+                
+                XLSX.writeFile(workbook, '零售数据系统备份.xlsx');
+                closeModal('downloadModal');
+            } catch (error) {
+                alert('下载失败: ' + error.message);
+            }
+        }
+
+        // 下载模板
+        function downloadTemplate() {
+            const workbook = XLSX.utils.book_new();
+            
+            // 创建数据源模板（只保留表头，必填字段标红）
+            const dataSourceHeaders = {
+                '单号': 'SO001',
+                '单据日期': '2025/1/15',
+                '渠道简称': '北京旗舰店',
+                '货号': 'H001',
+                '货品名称': '时尚连衣裙',
+                '数量': 2,
+                '生意额': 1398,
+                '品牌': '品牌A',
+                '类别': '连衣裙',
+                '区域': '代理'
+            };
+            
+            const dataSheet = XLSX.utils.json_to_sheet([dataSourceHeaders]);
+            
+            // 标记必填字段（系统使用的字段）
+            const requiredFields = ['单据日期', '渠道简称', '货号', '生意额', '类别', '区域'];
+            const range = XLSX.utils.decode_range(dataSheet['!ref']);
+            
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({r: 0, c: C});
+                if (dataSheet[cellAddress] && requiredFields.includes(dataSheet[cellAddress].v)) {
+                    if (!dataSheet[cellAddress].s) {
+                        dataSheet[cellAddress].s = {};
+                    }
+                    dataSheet[cellAddress].s = {
+                        font: { color: { rgb: "FF0000" }, bold: true },
+                        fill: { fgColor: { rgb: "FFF2CC" } }
+                    };
+                }
+            }
+            
+            XLSX.utils.book_append_sheet(workbook, dataSheet, '数据源');
+            
+            // 添加其他空数据源
+            const emptyData = [{}];
+            const fundSheet = XLSX.utils.json_to_sheet(emptyData);
+            const taskSheet = XLSX.utils.json_to_sheet(emptyData);
+            const stockSheet = XLSX.utils.json_to_sheet(emptyData);
+            
+            XLSX.utils.book_append_sheet(workbook, fundSheet, '资金源');
+            XLSX.utils.book_append_sheet(workbook, taskSheet, '任务源');
+            XLSX.utils.book_append_sheet(workbook, stockSheet, '库存源');
+            
+            XLSX.writeFile(workbook, '零售数据系统模板.xlsx');
+            closeModal('downloadModal');
+        }
+
+        // 生成二维码
+        function generateQRCode() {
+            const qrcodeElement = document.getElementById('qrcode');
+            qrcodeElement.innerHTML = '';
+            
+            // 获取当前页面URL
+            const url = window.location.href;
+            
+            QRCode.toCanvas(url, { 
+                width: 200, 
+                height: 200,
+                margin: 1,
+                color: {
+                    dark: '#0F052D',
+                    light: '#FFFFFF'
+                }
+            }, function(err, canvas) {
+                if (err) {
+                    console.error(err);
+                    qrcodeElement.innerHTML = '<p style="color: #FF1493;">二维码生成失败</p>';
+                    return;
+                }
+                qrcodeElement.appendChild(canvas);
+            });
+        }
+
+        // 标题双击编辑功能
+        function initTitleEditing() {
+            document.querySelectorAll('[contenteditable="false"]').forEach(title => {
+                title.addEventListener('dblclick', function() {
+                    this.setAttribute('contenteditable', 'true');
+                    this.classList.add('editing');
+                    this.focus();
+                });
+                
+                title.addEventListener('blur', function() {
+                    this.setAttribute('contenteditable', 'false');
+                    this.classList.remove('editing');
+                });
+                
+                title.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        this.blur();
+                    }
+                });
+            });
+        }
+
+        // 窗口调整大小时重绘图表
+        window.addEventListener('resize', function() {
+            if (channelChart) channelChart.resize();
+            if (typeRingChart) typeRingChart.resize();
+        });
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // 初始化数据库
+                await initDatabase();
+                
+                // 加载数据源数据
+                dataSource = await loadDataFromIndexedDB(STORES.DATA_SOURCE);
+                
+                // 初始化图表和界面
+                initCharts();
+                initTitleEditing();
+                
+                // 如果已有数据，更新图表
+                if (dataSource.length > 0) {
+                    updateFilterOptions();
+                    updateAllCharts();
+                }
+                
+                console.log('系统初始化完成，数据条数:', dataSource.length);
+            } catch (error) {
+                console.error('系统初始化失败:', error);
+                alert('系统初始化失败: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
