@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>零售数据分析系统</title>
+    <title>零售数据分析系统 - 云端版</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <!-- 引入 Supabase 客户端库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -55,11 +57,6 @@
         .filter-title:hover {
             border-color: #FF1493;
             background: rgba(255,20,147,0.1);
-        }
-
-        .filter-title.editing {
-            border-color: #00BFFF;
-            background: rgba(0,191,255,0.1);
         }
 
         .filter-controls {
@@ -510,6 +507,52 @@
             display: inline-block;
         }
 
+        .qrcode-instruction {
+            color: #00BFFF;
+            font-size: 14px;
+            margin: 10px 0;
+            text-align: left;
+            background: rgba(255,20,147,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,20,147,0.3);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 5, 45, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #FF1493;
+            border-top: 5px solid #00BFFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #FFD700;
+            font-size: 18px;
+            text-align: center;
+        }
+
         @media (min-width: 768px) {
             .dashboard {
                 padding: 20px;
@@ -544,10 +587,16 @@
     </style>
 </head>
 <body>
-    <div class="dashboard">
+    <!-- 加载遮罩 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">正在连接云端数据库...</div>
+    </div>
+
+    <div class="dashboard" style="display: none;" id="mainContent">
         <!-- 筛选器 -->
         <div class="filter-container">
-            <div class="filter-title" contenteditable="false">零售数据分析系统</div>
+            <div class="filter-title" contenteditable="false">零售数据分析系统 - 云端版</div>
             <div class="filter-controls">
                 <div class="time-toggle">
                     <button id="weekMode" class="active">周视图</button>
@@ -578,10 +627,7 @@
                     <button class="file-btn" onclick="showUploadModal()">上传数据</button>
                     <button class="file-btn" onclick="showDownloadModal()">下载数据/模板</button>
                     <button class="file-btn" onclick="showShareModal()">分享到微信</button>
-                    <div class="upload-mode">
-                        <label><input type="radio" name="uploadMode" value="append" checked> 增加</label>
-                        <label><input type="radio" name="uploadMode" value="replace"> 覆盖</label>
-                    </div>
+                    <button class="file-btn" onclick="clearCloudData()" style="background: linear-gradient(135deg, #FF6B6B 0%, #FF1493 100%);">清空云端数据</button>
                 </div>
             </div>
         </div>
@@ -640,19 +686,10 @@
     <div id="uploadModal" class="modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('uploadModal')">×</button>
-            <div class="modal-title">选择数据源上传</div>
-            <div class="source-buttons">
-                <button class="source-btn" onclick="selectDataSource('dataSource')">数据源</button>
-                <button class="source-btn" onclick="selectDataSource('fundSource')">资金源</button>
-                <button class="source-btn" onclick="selectDataSource('taskSource')">任务源</button>
-                <button class="source-btn" onclick="selectDataSource('stockSource')">库存源</button>
-            </div>
+            <div class="modal-title">上传数据到云端</div>
             <div class="upload-mode">
                 <label><input type="radio" name="uploadMode" value="append" checked> 增加模式（在现有数据上添加）</label>
                 <label><input type="radio" name="uploadMode" value="replace"> 覆盖模式（清空现有数据）</label>
-            </div>
-            <div style="margin-top: 15px; color: #00BFFF; font-size: 14px;">
-                已选择: <span id="selectedDataSource">未选择</span>
             </div>
             
             <!-- 进度条 -->
@@ -663,7 +700,7 @@
                 <div class="progress-text" id="progressText">正在处理数据...</div>
             </div>
             
-            <button class="file-btn" style="margin-top: 15px;" onclick="triggerFileInput()">确认上传</button>
+            <button class="file-btn" style="margin-top: 15px;" onclick="triggerFileInput()">选择Excel文件上传</button>
         </div>
     </div>
 
@@ -673,11 +710,11 @@
             <button class="modal-close" onclick="closeModal('downloadModal')">×</button>
             <div class="modal-title">下载数据或模板</div>
             <div class="download-options">
-                <button class="download-btn" onclick="downloadAllData()">下载数据源</button>
+                <button class="download-btn" onclick="downloadAllData()">下载云端数据</button>
                 <button class="download-btn" onclick="downloadTemplate()">下载模板</button>
             </div>
             <div style="margin-top: 15px; color: #00BFFF; font-size: 14px; text-align: left;">
-                <p>• <strong>下载数据源</strong>: 包含系统当前所有数据</p>
+                <p>• <strong>下载云端数据</strong>: 包含云端所有数据</p>
                 <p>• <strong>下载模板</strong>: 空模板，红色字段为必填</p>
             </div>
         </div>
@@ -688,128 +725,139 @@
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('shareModal')">×</button>
             <div class="modal-title">分享到微信</div>
-            <p style="color: #00BFFF; margin-bottom: 15px;">扫描二维码在微信中打开</p>
+            
+            <div class="qrcode-instruction">
+                <strong>使用说明：</strong><br>
+                1. 扫描二维码在微信中打开<br>
+                2. 系统已部署到永久网址，随时可访问<br>
+                3. 支持数据上传、分析和下载功能
+            </div>
+            
             <div id="qrcode"></div>
+            <div id="qrcodeError" style="display: none; color: #FF1493; margin: 10px 0;">
+                二维码生成失败，请复制网址手动分享：<br>
+                <strong id="shareUrl" style="color: #FFD700;"></strong>
+            </div>
+            
             <p style="color: #FFD700; margin-top: 15px; font-size: 14px;">在微信中打开可交互查看数据</p>
         </div>
     </div>
 
     <script>
-        // IndexedDB数据库配置
-        const DB_NAME = 'RetailDataSystem';
-        const DB_VERSION = 1;
-        const STORES = {
-            DATA_SOURCE: 'dataSource',
-            FUND_SOURCE: 'fundSource',
-            TASK_SOURCE: 'taskSource',
-            STOCK_SOURCE: 'stockSource'
-        };
+        // Supabase 配置 - 使用你的项目信息
+        const SUPABASE_URL = 'https://pcunypvsfnsbaxtkogdh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjdW55cHZzZm5zYmF4dGtvZ2RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwMTQ4NzksImV4cCI6MjA3ODU5MDg3OX0.tXCZ_cRVGssdFVsg7NG_vctDOIZwdLy_bcGE-mFrAHU';
 
-        let db = null;
+        // 创建 Supabase 客户端
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         let dataSource = [];
         let currentFilter = {
             mode: 'week',
             period: ''
         };
-        let selectedDataSource = '';
         let channelChart, typeRingChart;
 
-        // 初始化IndexedDB
-        function initDatabase() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    db = request.result;
-                    resolve(db);
-                };
-                
-                request.onupgradeneeded = (event) => {
-                    const database = event.target.result;
-                    
-                    // 创建所有数据存储
-                    Object.values(STORES).forEach(storeName => {
-                        if (!database.objectStoreNames.contains(storeName)) {
-                            const store = database.createObjectStore(storeName, { 
-                                keyPath: 'id', 
-                                autoIncrement: true 
-                            });
-                            // 创建索引以便查询
-                            store.createIndex('timestamp', 'timestamp', { unique: false });
-                        }
-                    });
-                };
-            });
+        // 更新加载状态
+        function updateLoadingText(text) {
+            document.getElementById('loadingText').textContent = text;
         }
 
-        // 保存数据到IndexedDB
-        async function saveDataToIndexedDB(storeName, data) {
-            return new Promise((resolve, reject) => {
-                if (!db) {
-                    reject(new Error('数据库未初始化'));
-                    return;
-                }
-                
-                const transaction = db.transaction([storeName], 'readwrite');
-                const store = transaction.objectStore(storeName);
-                
-                // 添加时间戳
-                const dataWithTimestamp = data.map(item => ({
-                    ...item,
-                    timestamp: new Date().getTime()
-                }));
-                
-                const requests = dataWithTimestamp.map(item => store.add(item));
-                let completed = 0;
-                
-                requests.forEach((request, index) => {
-                    request.onsuccess = () => {
-                        completed++;
-                        updateProgress(completed, data.length, `保存数据中... (${completed}/${data.length})`);
-                        
-                        if (completed === data.length) {
-                            resolve(completed);
-                        }
-                    };
-                    
-                    request.onerror = () => reject(request.error);
-                });
-            });
+        // 隐藏加载遮罩
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
         }
 
-        // 从IndexedDB读取数据
-        async function loadDataFromIndexedDB(storeName) {
-            return new Promise((resolve, reject) => {
-                if (!db) {
-                    reject(new Error('数据库未初始化'));
-                    return;
-                }
-                
-                const transaction = db.transaction([storeName], 'readonly');
-                const store = transaction.objectStore(storeName);
-                const request = store.getAll();
-                
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
+        // 显示错误信息
+        function showError(message) {
+            document.getElementById('loadingText').innerHTML = 
+                `${message}<br><br>
+                 <button class="file-btn" onclick="location.reload()" style="margin-top: 10px;">重新加载</button>`;
         }
 
-        // 清空IndexedDB存储
-        async function clearIndexedDBStore(storeName) {
-            return new Promise((resolve, reject) => {
-                if (!db) {
-                    reject(new Error('数据库未初始化'));
-                    return;
+        // 从云端加载数据
+        async function loadDataFromCloud() {
+            try {
+                updateLoadingText('正在从云端加载数据...');
+                
+                const { data, error } = await supabase
+                    .from('retail_data')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    throw new Error(`云端数据加载失败: ${error.message}`);
                 }
+
+                dataSource = data || [];
+                updateLoadingText(`数据加载完成，共 ${dataSource.length} 条记录`);
                 
-                const transaction = db.transaction([storeName], 'readwrite');
-                const store = transaction.objectStore(storeName);
-                const request = store.clear();
+                setTimeout(() => {
+                    hideLoading();
+                    if (dataSource.length > 0) {
+                        updateFilterOptions();
+                        updateAllCharts();
+                    }
+                }, 1000);
+
+            } catch (error) {
+                console.error('数据加载错误:', error);
+                showError(`数据加载失败: ${error.message}<br>请检查网络连接或稍后重试`);
+            }
+        }
+
+        // 保存数据到云端
+        async function saveDataToCloud(data) {
+            try {
+                const { error } = await supabase
+                    .from('retail_data')
+                    .insert(data);
+
+                if (error) {
+                    throw new Error(`数据保存失败: ${error.message}`);
+                }
+
+                return true;
+            } catch (error) {
+                console.error('数据保存错误:', error);
+                throw error;
+            }
+        }
+
+        // 清空云端数据
+        async function clearCloudData() {
+            if (!confirm('确定要清空云端所有数据吗？此操作不可恢复！')) {
+                return;
+            }
+
+            try {
+                updateLoadingText('正在清空云端数据...');
+                document.getElementById('loadingOverlay').style.display = 'flex';
+
+                const { error } = await supabase
+                    .from('retail_data')
+                    .delete()
+                    .neq('id', 0); // 删除所有数据
+
+                if (error) {
+                    throw new Error(`清空数据失败: ${error.message}`);
+                }
+
+                dataSource = [];
+                updateLoadingText('数据清空完成，正在重新加载...');
                 
-                request.onsuccess = () => resolve();
-                request.onerror = () => reject(request.error);
-            });
+                setTimeout(() => {
+                    hideLoading();
+                    updateAllCharts();
+                    alert('云端数据已清空！');
+                }, 1000);
+
+            } catch (error) {
+                console.error('清空数据错误:', error);
+                alert(`清空数据失败: ${error.message}`);
+                hideLoading();
+            }
         }
 
         // 更新进度显示
@@ -1154,7 +1202,7 @@
             channelChart.setOption(option);
         }
 
-        // 更新联营代理圆环图 - 已修复筛选问题
+        // 更新联营代理圆环图 - 修复筛选问题和数据逻辑
         function updateTypeRingChart() {
             const filteredData = getFilteredData();
             
@@ -1181,12 +1229,15 @@
                 return;
             }
             
-            // 按U列（区域）分类计算销售额 - 使用筛选后的数据
+            // 按U列（区域）分类计算销售额 - 修复空值处理
             const typeSales = {};
             filteredData.forEach(row => {
-                const type = row['区域'] || '未知类型';
-                const amount = parseFloat(row['生意额']) || 0;
-                typeSales[type] = (typeSales[type] || 0) + amount;
+                const type = row['区域'];
+                // 过滤空值：null, undefined, 空字符串, 纯空格，以及表头
+                if (type && type.toString().trim() !== '' && type.toString().trim() !== '区域') {
+                    const amount = parseFloat(row['生意额']) || 0;
+                    typeSales[type] = (typeSales[type] || 0) + amount;
+                }
             });
             
             // 转换为数组并按销售额降序排列
@@ -1424,22 +1475,7 @@
             document.getElementById(modalId).style.display = 'none';
         }
 
-        function selectDataSource(source) {
-            selectedDataSource = source;
-            const sourceNames = {
-                'dataSource': '数据源',
-                'fundSource': '资金源',
-                'taskSource': '任务源',
-                'stockSource': '库存源'
-            };
-            document.getElementById('selectedDataSource').textContent = sourceNames[source];
-        }
-
         function triggerFileInput() {
-            if (!selectedDataSource) {
-                alert('请先选择数据源');
-                return;
-            }
             document.getElementById('fileInput').click();
         }
 
@@ -1472,53 +1508,58 @@
                     
                     updateProgress(50, 100, '处理数据中...');
                     
-                    let storeName;
-                    switch(selectedDataSource) {
-                        case 'dataSource':
-                            storeName = STORES.DATA_SOURCE;
-                            break;
-                        case 'fundSource':
-                            storeName = STORES.FUND_SOURCE;
-                            break;
-                        case 'taskSource':
-                            storeName = STORES.TASK_SOURCE;
-                            break;
-                        case 'stockSource':
-                            storeName = STORES.STOCK_SOURCE;
-                            break;
-                        default:
-                            throw new Error('未知的数据源类型');
-                    }
-                    
                     if (uploadMode === 'replace') {
-                        updateProgress(60, 100, '清空现有数据...');
-                        await clearIndexedDBStore(storeName);
+                        updateProgress(60, 100, '清空云端数据...');
+                        const { error } = await supabase
+                            .from('retail_data')
+                            .delete()
+                            .neq('id', 0);
+                            
+                        if (error) throw new Error(`清空数据失败: ${error.message}`);
                     }
                     
-                    updateProgress(70, 100, '保存数据到数据库...');
-                    await saveDataToIndexedDB(storeName, jsonData);
+                    updateProgress(70, 100, '保存数据到云端...');
                     
-                    // 如果是数据源，更新内存中的数据
-                    if (selectedDataSource === 'dataSource') {
-                        updateProgress(90, 100, '更新图表数据...');
-                        dataSource = await loadDataFromIndexedDB(STORES.DATA_SOURCE);
-                        updateFilterOptions();
-                        updateAllCharts();
+                    // 分批上传数据，避免超时
+                    const batchSize = 100;
+                    let uploaded = 0;
+                    
+                    for (let i = 0; i < jsonData.length; i += batchSize) {
+                        const batch = jsonData.slice(i, i + batchSize);
+                        await saveDataToCloud(batch);
+                        uploaded += batch.length;
+                        updateProgress(70 + Math.round((uploaded / jsonData.length) * 20), 100, 
+                                    `保存数据到云端... (${uploaded}/${jsonData.length})`);
                     }
+                    
+                    updateProgress(95, 100, '重新加载数据...');
+                    
+                    // 重新从云端加载数据
+                    const { data: newData, error } = await supabase
+                        .from('retail_data')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) throw new Error(`数据重载失败: ${error.message}`);
+                    
+                    dataSource = newData || [];
                     
                     updateProgress(100, 100, '上传完成！');
                     
                     setTimeout(() => {
-                        alert(`文件 ${file.name} 上传成功！\n数据条数: ${jsonData.length}\n数据源: ${selectedDataSource}\n模式: ${uploadMode === 'append' ? '增加' : '覆盖'}`);
+                        alert(`文件 ${file.name} 上传成功！\n数据条数: ${jsonData.length}\n模式: ${uploadMode === 'append' ? '增加' : '覆盖'}`);
                         closeModal('uploadModal');
-                        selectedDataSource = '';
-                        document.getElementById('selectedDataSource').textContent = '未选择';
                         hideProgress();
+                        
+                        if (dataSource.length > 0) {
+                            updateFilterOptions();
+                            updateAllCharts();
+                        }
                     }, 500);
                     
                 } catch (error) {
-                    alert('文件解析错误: ' + error.message);
-                    console.error('File parsing error:', error);
+                    alert('文件处理错误: ' + error.message);
+                    console.error('File processing error:', error);
                     hideProgress();
                 }
             };
@@ -1534,47 +1575,25 @@
         // 下载所有数据
         async function downloadAllData() {
             try {
-                const workbook = XLSX.utils.book_new();
-                let hasData = false;
-                
-                // 下载数据源
-                const dataSourceData = await loadDataFromIndexedDB(STORES.DATA_SOURCE);
-                if (dataSourceData.length > 0) {
-                    const dataSheet = XLSX.utils.json_to_sheet(dataSourceData.map(({id, timestamp, ...rest}) => rest));
-                    XLSX.utils.book_append_sheet(workbook, dataSheet, '数据源');
-                    hasData = true;
+                const { data, error } = await supabase
+                    .from('retail_data')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    throw new Error(`数据下载失败: ${error.message}`);
                 }
-                
-                // 下载资金源
-                const fundSourceData = await loadDataFromIndexedDB(STORES.FUND_SOURCE);
-                if (fundSourceData.length > 0) {
-                    const fundSheet = XLSX.utils.json_to_sheet(fundSourceData.map(({id, timestamp, ...rest}) => rest));
-                    XLSX.utils.book_append_sheet(workbook, fundSheet, '资金源');
-                    hasData = true;
-                }
-                
-                // 下载任务源
-                const taskSourceData = await loadDataFromIndexedDB(STORES.TASK_SOURCE);
-                if (taskSourceData.length > 0) {
-                    const taskSheet = XLSX.utils.json_to_sheet(taskSourceData.map(({id, timestamp, ...rest}) => rest));
-                    XLSX.utils.book_append_sheet(workbook, taskSheet, '任务源');
-                    hasData = true;
-                }
-                
-                // 下载库存源
-                const stockSourceData = await loadDataFromIndexedDB(STORES.STOCK_SOURCE);
-                if (stockSourceData.length > 0) {
-                    const stockSheet = XLSX.utils.json_to_sheet(stockSourceData.map(({id, timestamp, ...rest}) => rest));
-                    XLSX.utils.book_append_sheet(workbook, stockSheet, '库存源');
-                    hasData = true;
-                }
-                
-                if (!hasData) {
-                    alert('系统中暂无数据可下载');
+
+                if (!data || data.length === 0) {
+                    alert('云端暂无数据可下载');
                     return;
                 }
+
+                const workbook = XLSX.utils.book_new();
+                const dataSheet = XLSX.utils.json_to_sheet(data.map(({id, created_at, ...rest}) => rest));
+                XLSX.utils.book_append_sheet(workbook, dataSheet, '云端数据');
                 
-                XLSX.writeFile(workbook, '零售数据系统备份.xlsx');
+                XLSX.writeFile(workbook, `零售数据系统备份_${new Date().toLocaleDateString()}.xlsx`);
                 closeModal('downloadModal');
             } catch (error) {
                 alert('下载失败: ' + error.message);
@@ -1619,45 +1638,57 @@
             }
             
             XLSX.utils.book_append_sheet(workbook, dataSheet, '数据源');
-            
-            // 添加其他空数据源
-            const emptyData = [{}];
-            const fundSheet = XLSX.utils.json_to_sheet(emptyData);
-            const taskSheet = XLSX.utils.json_to_sheet(emptyData);
-            const stockSheet = XLSX.utils.json_to_sheet(emptyData);
-            
-            XLSX.utils.book_append_sheet(workbook, fundSheet, '资金源');
-            XLSX.utils.book_append_sheet(workbook, taskSheet, '任务源');
-            XLSX.utils.book_append_sheet(workbook, stockSheet, '库存源');
-            
             XLSX.writeFile(workbook, '零售数据系统模板.xlsx');
             closeModal('downloadModal');
         }
 
-        // 生成二维码
+        // 生成二维码 - 修复版本
         function generateQRCode() {
             const qrcodeElement = document.getElementById('qrcode');
+            const qrcodeError = document.getElementById('qrcodeError');
+            const shareUrlElement = document.getElementById('shareUrl');
+            
             qrcodeElement.innerHTML = '';
+            qrcodeError.style.display = 'none';
             
-            // 获取当前页面URL
-            const url = window.location.href;
+            // 使用固定的GitHub Pages网址
+            const shareUrl = window.location.href;
+            shareUrlElement.textContent = shareUrl;
             
-            QRCode.toCanvas(url, { 
-                width: 200, 
-                height: 200,
-                margin: 1,
-                color: {
-                    dark: '#0F052D',
-                    light: '#FFFFFF'
+            try {
+                // 检查QRCode库是否可用
+                if (typeof QRCode === 'undefined') {
+                    throw new Error('QRCode库加载失败');
                 }
-            }, function(err, canvas) {
-                if (err) {
-                    console.error(err);
-                    qrcodeElement.innerHTML = '<p style="color: #FF1493;">二维码生成失败</p>';
-                    return;
-                }
-                qrcodeElement.appendChild(canvas);
-            });
+                
+                QRCode.toCanvas(shareUrl, { 
+                    width: 200, 
+                    height: 200,
+                    margin: 1,
+                    color: {
+                        dark: '#0F052D',
+                        light: '#FFFFFF'
+                    }
+                }, function(err, canvas) {
+                    if (err) {
+                        console.error('QRCode生成错误:', err);
+                        showQRCodeError(shareUrl);
+                        return;
+                    }
+                    qrcodeElement.appendChild(canvas);
+                });
+            } catch (error) {
+                console.error('QRCode初始化错误:', error);
+                showQRCodeError(shareUrl);
+            }
+        }
+
+        function showQRCodeError(url) {
+            const qrcodeElement = document.getElementById('qrcode');
+            const qrcodeError = document.getElementById('qrcodeError');
+            
+            qrcodeElement.innerHTML = '';
+            qrcodeError.style.display = 'block';
         }
 
         // 标题双击编辑功能
@@ -1691,26 +1722,16 @@
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', async function() {
             try {
-                // 初始化数据库
-                await initDatabase();
-                
-                // 加载数据源数据
-                dataSource = await loadDataFromIndexedDB(STORES.DATA_SOURCE);
-                
-                // 初始化图表和界面
+                // 初始化图表
                 initCharts();
                 initTitleEditing();
                 
-                // 如果已有数据，更新图表
-                if (dataSource.length > 0) {
-                    updateFilterOptions();
-                    updateAllCharts();
-                }
+                // 从云端加载数据
+                await loadDataFromCloud();
                 
-                console.log('系统初始化完成，数据条数:', dataSource.length);
             } catch (error) {
                 console.error('系统初始化失败:', error);
-                alert('系统初始化失败: ' + error.message);
+                showError(`系统初始化失败: ${error.message}<br>请刷新页面重试`);
             }
         });
     </script>
